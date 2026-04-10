@@ -1,0 +1,70 @@
+# test_cataas_api.py
+import requests
+
+BASE_URL = "https://cataas.com"
+TIMEOUT = 10
+
+
+def test_random_cat_status_code():
+    response = requests.get(f"{BASE_URL}/cat", timeout=TIMEOUT)
+    assert response.status_code == 200
+
+
+def test_random_cat_returns_an_image():
+    response = requests.get(f"{BASE_URL}/cat", timeout=TIMEOUT)
+    assert response.status_code == 200
+    assert response.headers["Content-Type"].startswith("image/")
+
+
+def test_cat_says_status_code():
+    response = requests.get(f"{BASE_URL}/cat/says/Bonjour", timeout=TIMEOUT)
+    assert response.status_code == 200
+
+
+def test_cat_says_returns_an_image():
+    response = requests.get(f"{BASE_URL}/cat/says/Bonjour", timeout=TIMEOUT)
+    assert response.status_code == 200
+    assert response.headers["Content-Type"].startswith("image/")
+
+
+def test_random_cat_json_format():
+    response = requests.get(
+        f"{BASE_URL}/cat?json=true",
+        headers={"Accept": "application/json"},
+        timeout=TIMEOUT
+    )
+    assert response.status_code == 200
+    assert response.headers["Content-Type"].startswith("application/json")
+
+    data = response.json()
+    assert isinstance(data, dict)
+
+
+def test_tags_returns_json_array():
+    response = requests.get(f"{BASE_URL}/api/tags", timeout=TIMEOUT)
+    assert response.status_code == 200
+    assert response.headers["Content-Type"].startswith("application/json")
+
+    data = response.json()
+    assert isinstance(data, list)
+
+    if len(data) > 0:
+        assert isinstance(data[0], str)
+
+
+def test_cats_search_with_pagination_params():
+    response = requests.get(
+        f"{BASE_URL}/api/cats",
+        params={"tags": "cute", "skip": 0, "limit": 5},
+        timeout=TIMEOUT
+    )
+    assert response.status_code == 200
+    assert response.headers["Content-Type"].startswith("application/json")
+
+    data = response.json()
+    assert isinstance(data, list)
+
+
+def test_unknown_route_returns_404():
+    response = requests.get(f"{BASE_URL}/route-inexistante-xyz", timeout=TIMEOUT)
+    assert response.status_code == 404
