@@ -1,26 +1,22 @@
 import datetime
+import json
 
 from test_cataas_api import ALL_TESTS, ApiCallError
 from qos_measure import run_qos
 
 
 def run() -> dict:
-    """
-    Exécute tous les tests + la mesure QoS.
-    Retourne un dict conforme à la structure attendue :
-    {
-        "api": "Cataas",
-        "timestamp": "...",
-        "summary": { passed, failed, total, error_rate, latency_ms_avg, latency_ms_p95 },
-        "tests": [ {name, status, latency_ms, details}, ... ]
-    }
-    """
-    # ── 1. Exécution des tests ────────────────────────────────────────────────
     results = []
+
     for test_fn in ALL_TESTS:
         try:
-            result = test_fn()
-            # test_fn() lève AssertionError si un assert échoue
+            payload = test_fn() or {}
+            result = {
+                "name": test_fn.__name__,
+                "status": "PASS",
+                "latency_ms": payload.get("latency_ms"),
+                "details": None,
+            }
         except AssertionError as e:
             result = {
                 "name": test_fn.__name__,
@@ -42,12 +38,11 @@ def run() -> dict:
                 "latency_ms": None,
                 "details": f"Erreur inattendue : {e}",
             }
+
         results.append(result)
 
-    # ── 2. Mesure QoS ─────────────────────────────────────────────────────────
     qos = run_qos()
 
-    # ── 3. Calcul du résumé ───────────────────────────────────────────────────
     passed = sum(1 for r in results if r["status"] == "PASS")
     failed = len(results) - passed
 
@@ -70,5 +65,4 @@ def run() -> dict:
 
 
 if __name__ == "__main__":
-    import json
     print(json.dumps(run(), indent=2, ensure_ascii=False))
