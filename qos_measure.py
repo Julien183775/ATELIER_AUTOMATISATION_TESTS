@@ -1,52 +1,69 @@
 import time
+import math
 import requests
-import statistics
 
 BASE_URL = "https://cataas.com"
-NB_REQUESTS = 20
-TIMEOUT = 5
+NB_REQUESTS = 10   # max 20 requêtes/run selon le sujet, on prend 10 pour rester raisonnable
+TIMEOUT = 3
 
-times = []
-errors = 0
 
-print("Mesure de la QoS en cours...\n")
+def run_qos() -> dict:
+    """
+    Effectue NB_REQUESTS appels sur GET /cat et calcule les métriques QoS.
+    Retourne un dict avec : latency_ms_avg, latency_ms_p95, latency_ms_min,
+    latency_ms_max, error_rate, availability, nb_requests.
+    """
+    latencies = []
+    errors = 0
 
-for i in range(NB_REQUESTS):
-    start = time.time()
+    for _ in range(NB_REQUESTS):
+        try:
+            start = time.perf_counter()
+            response = requests.get(f"{BASE_URL}/cat", timeout=TIMEOUT)
+            latency_ms = round((time.perf_counter() - start) * 1000)
 
-    try:
-        response = requests.get(f"{BASE_URL}/cat", timeout=TIMEOUT)
-        duration = time.time() - start
+            if response.status_code != 200:
+                errors += 1
+            elif not response.headers.get("Content-Type", "").startswith("image/"):
+                errors += 1
+            else:
+                latencies.append(latency_ms)
 
-        times.append(duration)
-
-        if response.status_code != 200:
+        except requests.RequestException:
             errors += 1
 
-        print(f"Requête {i+1}: {round(duration, 3)} s")
+    if latencies:
+        latencies_sorted = sorted(latencies)
+        avg = round(sum(latencies_sorted) / len(latencies_sorted), 1)
+        min_lat = latencies_sorted[0]
+        max_lat = latencies_sorted[-1]
+        p95_index = max(0, math.ceil(0.95 * len(latencies_sorted)) - 1)
+        p95 = latencies_sorted[p95_index]
+    else:
+        avg = min_lat = max_lat = p95 = None
 
-    except requests.RequestException:
-        errors += 1
-        print(f"Requête {i+1}: ERREUR")
+    error_rate = round(errors / NB_REQUESTS, 3)
+    availability = round((1 - error_rate) * 100, 1)
 
-# 📊 Calculs
-mean_time = statistics.mean(times)
-max_time = max(times)
-min_time = min(times)
+    return {
+        "nb_requests": NB_REQUESTS,
+        "latency_ms_avg": avg,
+        "latency_ms_p95": p95,
+        "latency_ms_min": min_lat,
+        "latency_ms_max": max_lat,
+        "error_rate": error_rate,
+        "availability_pct": availability,
+    }
 
-# Calcul du percentile 95
-times_sorted = sorted(times)
-index_p95 = int(0.95 * len(times_sorted)) - 1
-p95 = times_sorted[index_p95]
 
-error_rate = (errors / NB_REQUESTS) * 100
-availability = 100 - error_rate
-
-# 📢 Résultats
-print("\n===== Résultats QoS =====")
-print(f"Temps moyen: {round(mean_time, 3)} s")
-print(f"Temps max: {round(max_time, 3)} s")
-print(f"Temps min: {round(min_time, 3)} s")
-print(f"P95: {round(p95, 3)} s")
-print(f"Taux d'erreur: {round(error_rate, 2)} %")
-print(f"Disponibilité: {round(availability, 2)} %")
+if __name__ == "__main__":
+    print("Mesure de la QoS en cours...\n")
+    results = run_qos()
+    print("===== Résultats QoS =====")
+    print(f"Requêtes effectuées : {results['nb_requests']}")
+    print(f"Latence moyenne     : {results['latency_ms_avg']} ms")
+    print(f"Latence min         : {results['latency_ms_min']} ms")
+    print(f"Latence max         : {results['latency_ms_max']} ms")
+    print(f"P95                 : {results['latency_ms_p95']} ms")
+    print(f"Taux d'erreur       : {round(results['error_rate'] * 100, 1)} %")
+    print(f"Disponibilité       : {results['availability_pct']} %")
