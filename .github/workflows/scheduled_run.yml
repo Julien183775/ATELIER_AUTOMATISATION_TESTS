@@ -1,0 +1,14 @@
+name: Scheduled Run
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # toutes les heures
+  workflow_dispatch:       # bouton "Run workflow" manuel dans GitHub
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger API run
+        run: curl -L --fail https://julienicam2028.pythonanywhere.com/run
